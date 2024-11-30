@@ -1,20 +1,22 @@
 import { MnemonicEN } from "@bsvwasm/mnemonic";
-import { BAP } from "bitcoin-bap";
-import Mnemonic from "bitcore-mnemonic";
+import { BAP } from "bsv-bap";
 import bodyParser from "body-parser";
-import { ExtendedPrivateKey } from "bsv-wasm";
+import { HD, Mnemonic } from "@bsv/sdk";
 import timeout from "connect-timeout";
 import cors from "cors";
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import express from "express";
-import fs from "fs";
+import fs from "node:fs";
 import Datastore from "nedb";
-import path, { dirname } from "path";
-import { fileURLToPath } from "url";
+import path, { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import Key from "./key.js";
 import Seed from "./seed.js";
 import State from "./state.js";
 import * as Wallet from "./wallet/index.js";
+import { Utils } from "@bsv/sdk";
+
+const { toArray } = Utils;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -245,8 +247,8 @@ const init = (config) => {
     // // get cooresponding extended private key
     // const hdPrivateKey = ExtendedPrivateKey.from_string(xpriv.xprivkey);
 
-    const pk = ExtendedPrivateKey.from_seed(Buffer.from(s.hex, "hex"));
-    const bap = new BAP(pk.to_string());
+    const pk = HD.fromSeed(toArray(s.hex, "hex"));
+    const bap = new BAP(pk.toString());
     const newId = bap.newId();
 
     K.setSeed(s);
@@ -304,10 +306,10 @@ const init = (config) => {
   app.post("/export", async (req, res) => {
     // return the mnemonic
     try {
-      let hex = await seed.exportKey(req.body.password);
+      const hex = await seed.exportKey(req.body.password);
 
-      const pk = ExtendedPrivateKey.from_seed(Buffer.from(hex, "hex"));
-      const bap = new BAP(pk.to_string());
+      const pk = HD.fromSeed(Buffer.from(hex, "hex"));
+      const bap = new BAP(pk.toString());
       // const bapId = bap.getId();
       // console.log({ bapId });
       const mnemonic = Mnemonic.fromSeed(

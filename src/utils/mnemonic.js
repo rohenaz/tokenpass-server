@@ -1,5 +1,5 @@
 import { MnemonicEN } from "@bsvwasm/mnemonic";
-import { Hash } from "bsv-wasm";
+import { Hash } from "@bsv/sdk";
 import randomBytes from "randombytes";
 import { bip39words } from "./bip39words.js";
 
