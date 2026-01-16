@@ -2,31 +2,21 @@
 	"name": "tokenpass-server",
 	"version": "0.1.5",
 	"description": "TokenPass Server",
-	"main": "bin/tokenpass.js",
 	"homepage": "https://tokenpass.app",
 	"type": "module",
 	"author": {
 		"name": "Luke Rohenaz"
 	},
 	"license": "MIT",
-	"bin": {
-		"tokenpass": "./bin/tokenpass.js"
-	},
 	"scripts": {
-		"dev": "bun run bin/tokenpass.js",
-		"start": "bun bin/tokenpass.js",
-		"test": "bun test",
-		"lint": "biome check .",
-		"lint:fix": "biome check --write ."
+		"dev": "cd web && bun dev",
+		"build": "cd web && bun run build",
+		"start": "cd web && bun start"
 	},
 	"dependencies": {
 		"@bsv/sdk": "^1.10.1",
-		"@hono/node-server": "^1.19.9",
 		"bsv-bap": "0.1.14",
-		"hono": "^4.11.4",
 		"minidenticons": "^4.2.1",
-		"nedb": "^1.8.0",
-		"randombytes": "^2.1.0",
 		"sigma-protocol": "^0.1.8"
 	},
 	"devDependencies": {
