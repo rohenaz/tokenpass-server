@@ -1,6 +1,6 @@
-#!/usr/bin/env node
-import os from "os";
-import { init } from "../dist/index.esm.js";
-const homedir = os.homedir();
+#!/usr/bin/env bun
+import os from "node:os";
+import { init } from "../src/index.ts";
 
-init({ db: homedir + "/.tokenpass" });
+const homedir = os.homedir();
+init({ db: `${homedir}/.tokenpass` });

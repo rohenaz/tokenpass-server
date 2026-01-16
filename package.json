@@ -1,47 +1,36 @@
 {
-  "name": "tokenpass-server",
-  "version": "0.1.5",
-  "description": "TokenPass Server",
-  "source": "src/index.js",
-  "main": "dist/index.cjs",
-  "module": "dist/index.esm.js",
-  "homepage": "https://tokenpass.app",
-  "type": "module",
-  "author": {
-    "name": "Luke Rohenaz"
-  },
-  "license": "MIT",
-  "bin": {
-    "tokenpass": "./bin/tokenpass.js"
-  },
-  "scripts": {
-    "buildd": "rimraf -rf dist && microbundle && cpy src/views/**/* dist/views --parents && cpy public/**/* dist/public --parents",
-    "dev": "bun buildd && bun start",
-    "start": "bun bin/tokenpass.js",
-    "test": "jest"
-  },
-  "dependencies": {
-    "@bsv/sdk": "^1.2.4",
-    "@bsvwasm/mnemonic": "^1.0.3",
-    "@sweetalert2/theme-dark": "^5.0.18",
-    "bitcore-lib": "^10.5.3",
-    "bitcore-mnemonic": "^10.5.3",
-    "body-parser": "^1.20.3",
-    "bsv": "1.5.6",
-    "bsv-bap": "^0.0.5",
-    "connect-timeout": "^1.9.0",
-    "cors": "^2.8.5",
-    "cpy-cli": "^5.0.0",
-    "ejs": "^3.1.10",
-    "express": "^4.21.1",
-    "libp2p": "0.42.0",
-    "minidenticons": "^4.2.1",
-    "nedb": "^1.8.0"
-  },
-  "devDependencies": {
-    "dotenv": "^16.4.5",
-    "jest": "^29.7.0",
-    "microbundle": "^0.15.1",
-    "rimraf": "^5.0.10"
-  }
+	"name": "tokenpass-server",
+	"version": "0.1.5",
+	"description": "TokenPass Server",
+	"main": "bin/tokenpass.js",
+	"homepage": "https://tokenpass.app",
+	"type": "module",
+	"author": {
+		"name": "Luke Rohenaz"
+	},
+	"license": "MIT",
+	"bin": {
+		"tokenpass": "./bin/tokenpass.js"
+	},
+	"scripts": {
+		"dev": "bun run bin/tokenpass.js",
+		"start": "bun bin/tokenpass.js",
+		"test": "bun test",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write ."
+	},
+	"dependencies": {
+		"@bsv/sdk": "^1.10.1",
+		"@hono/node-server": "^1.19.9",
+		"bsv-bap": "0.1.14",
+		"hono": "^4.11.4",
+		"minidenticons": "^4.2.1",
+		"nedb": "^1.8.0",
+		"randombytes": "^2.1.0",
+		"sigma-protocol": "^0.1.8"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.11",
+		"@types/bun": "latest"
+	}
 }
