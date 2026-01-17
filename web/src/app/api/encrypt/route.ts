@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Key, State, Wallet } from "@/lib/tokenpass/server";
 import { ECIES, PublicKey, Utils } from "@bsv/sdk";
+import {
+	validateAccessToken,
+	extractAccessToken,
+	createErrorResponse,
+} from "@sigma-auth/better-auth-plugin/server/local";
 
 const { toArray, toHex } = Utils;
 
@@ -27,49 +32,20 @@ export async function POST(request: NextRequest) {
 
 	if (!Key.getSeed()) {
 		return NextResponse.json(
-			{
-				error: "Wallet is locked. Please login first.",
-				code: 1,
-				success: false,
-			},
+			createErrorResponse("Wallet is locked. Please login first.", 1),
 			{ status: 401 },
 		);
 	}
 
-	const authHeader = request.headers.get("authorization");
-	const accessToken = authHeader?.replace(/^Bearer\s+/i, "");
+	const accessToken = extractAccessToken(request.headers.get("authorization"));
+	const validation = await validateAccessToken({
+		accessToken: accessToken || "",
+		findState: (token) => State.findOne({ accessToken: token }),
+	});
 
-	if (!accessToken) {
+	if (!validation.valid) {
 		return NextResponse.json(
-			{
-				error: "Please provide an access token in the Authorization header.",
-				code: 2,
-				success: false,
-			},
-			{ status: 401 },
-		);
-	}
-
-	const state = await State.findOne({ accessToken });
-	if (!state?.accessToken || state.accessToken !== accessToken) {
-		return NextResponse.json(
-			{
-				error: "Invalid access token.",
-				code: 3,
-				success: false,
-			},
-			{ status: 401 },
-		);
-	}
-
-	const expired = state.expireTime && state.expireTime < Date.now();
-	if (expired) {
-		return NextResponse.json(
-			{
-				error: "Access token has expired.",
-				code: 5,
-				success: false,
-			},
+			createErrorResponse(validation.error!, validation.code),
 			{ status: 401 },
 		);
 	}
@@ -108,10 +84,9 @@ export async function POST(request: NextRequest) {
 			});
 		} catch (error) {
 			return NextResponse.json(
-				{
-					error: `Failed to encrypt: ${error instanceof Error ? error.message : String(error)}`,
-					success: false,
-				},
+				createErrorResponse(
+					`Failed to encrypt: ${error instanceof Error ? error.message : String(error)}`,
+				),
 				{ status: 500 },
 			);
 		}
@@ -121,20 +96,19 @@ export async function POST(request: NextRequest) {
 	const encryptMessage = data || message;
 	if (!encryptMessage) {
 		return NextResponse.json(
-			{
-				error: "Either 'data' with 'friendBapId'/'theirPublicKey', or 'message' for legacy mode is required.",
-				success: false,
-			},
+			createErrorResponse(
+				"Either 'data' with 'friendBapId'/'theirPublicKey', or 'message' for legacy mode is required.",
+			),
 			{ status: 400 },
 		);
 	}
 
-	const host = state.host || "localhost";
+	const host = validation.host || "localhost";
 	const key = await Key.findOrCreate({ host });
 
 	if (!key) {
 		return NextResponse.json(
-			{ error: "Please create a wallet.", success: false },
+			createErrorResponse("Please create a wallet."),
 			{ status: 417 },
 		);
 	}
