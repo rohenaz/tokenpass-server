@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { Seed } from "@/lib/tokenpass/server";
 
 export async function POST(request: NextRequest) {
@@ -16,10 +16,7 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ seed: result.hex, mnemonic: result.mnemonic });
 		}
 
-		return NextResponse.json(
-			{ error: "Invalid password", success: false },
-			{ status: 401 },
-		);
+		return NextResponse.json({ error: "Invalid password", success: false }, { status: 401 });
 	} catch (e) {
 		console.error(e);
 		return NextResponse.json({ error: "Invalid password", success: false }, { status: 401 });

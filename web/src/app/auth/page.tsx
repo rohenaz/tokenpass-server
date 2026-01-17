@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { Auth } from "@/components/Auth";
 import { Login } from "@/components/Login";
 import { Register } from "@/components/Register";
@@ -19,7 +19,7 @@ function AuthContent() {
 	const scopes = scopesParam ? scopesParam.split(",").filter(Boolean) : [];
 	const returnURL = searchParams.get("returnURL") || undefined;
 
-	const loadStatus = async () => {
+	const loadStatus = useCallback(async () => {
 		setViewState("loading");
 		const status = await getStatus();
 		if (status.status === "no_wallet") {
@@ -29,11 +29,11 @@ function AuthContent() {
 		} else {
 			setViewState("ready");
 		}
-	};
+	}, []);
 
 	useEffect(() => {
 		loadStatus();
-	}, []);
+	}, [loadStatus]);
 
 	if (viewState === "loading") {
 		return (
@@ -56,28 +56,23 @@ function AuthContent() {
 		return <Login onSuccess={loadStatus} />;
 	}
 
-	return (
-		<Auth
-			host={host}
-			icon={icon}
-			scopes={scopes}
-			returnURL={returnURL}
-		/>
-	);
+	return <Auth host={host} icon={icon} scopes={scopes} returnURL={returnURL} />;
 }
 
 export default function AuthPage() {
 	return (
-		<Suspense fallback={
-			<div className="min-h-screen flex items-center justify-center">
-				<div className="text-center space-y-4">
-					<div className="animate-pulse">
-						<div className="h-16 w-16 mx-auto rounded-full bg-muted" />
+		<Suspense
+			fallback={
+				<div className="min-h-screen flex items-center justify-center">
+					<div className="text-center space-y-4">
+						<div className="animate-pulse">
+							<div className="h-16 w-16 mx-auto rounded-full bg-muted" />
+						</div>
+						<p className="text-muted-foreground">Loading TokenPass...</p>
 					</div>
-					<p className="text-muted-foreground">Loading TokenPass...</p>
 				</div>
-			</div>
-		}>
+			}
+		>
 			<AuthContent />
 		</Suspense>
 	);

@@ -1,14 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ModeToggle } from "@/components/mode-toggle";
-import { register, importSeed } from "@/lib/api";
+import { importSeed, register } from "@/lib/api";
 
 interface RegisterProps {
 	onSuccess: () => void;
@@ -100,9 +107,7 @@ export function Register({ onSuccess }: RegisterProps) {
 				<Card className="w-full max-w-md">
 					<CardHeader className="text-center">
 						<CardTitle className="text-2xl">Create Your Wallet</CardTitle>
-						<CardDescription>
-							Set up your Bitcoin identity wallet with TokenPass
-						</CardDescription>
+						<CardDescription>Set up your Bitcoin identity wallet with TokenPass</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<form onSubmit={handleSubmit} className="space-y-4">
@@ -147,9 +152,7 @@ export function Register({ onSuccess }: RegisterProps) {
 									placeholder="Confirm your password"
 								/>
 							</div>
-							{error && (
-								<p className="text-sm text-destructive">{error}</p>
-							)}
+							{error && <p className="text-sm text-destructive">{error}</p>}
 							<Button type="submit" className="w-full" disabled={isLoading}>
 								{isLoading ? "Creating Wallet..." : "Create Wallet"}
 							</Button>
@@ -165,14 +168,17 @@ export function Register({ onSuccess }: RegisterProps) {
 								</div>
 							</div>
 
-							<Dialog open={importDialogOpen} onOpenChange={(open) => {
-								setImportDialogOpen(open);
-								if (!open) {
-									setImportMnemonic("");
-									setImportPassword("");
-									setImportError(null);
-								}
-							}}>
+							<Dialog
+								open={importDialogOpen}
+								onOpenChange={(open) => {
+									setImportDialogOpen(open);
+									if (!open) {
+										setImportMnemonic("");
+										setImportPassword("");
+										setImportError(null);
+									}
+								}}
+							>
 								<DialogTrigger asChild>
 									<Button variant="outline" className="w-full mt-4">
 										Import Existing Seed
@@ -206,9 +212,7 @@ export function Register({ onSuccess }: RegisterProps) {
 												placeholder="Choose a password"
 											/>
 										</div>
-										{importError && (
-											<p className="text-sm text-destructive">{importError}</p>
-										)}
+										{importError && <p className="text-sm text-destructive">{importError}</p>}
 										<Button onClick={handleImport} disabled={isImporting} className="w-full">
 											{isImporting ? "Importing..." : "Import"}
 										</Button>

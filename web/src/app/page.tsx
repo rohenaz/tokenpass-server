@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Dashboard } from "@/components/Dashboard";
 import { Login } from "@/components/Login";
 import { Register } from "@/components/Register";
@@ -12,16 +12,16 @@ export default function Home() {
 	const [viewState, setViewState] = useState<ViewState>("loading");
 	const [walletStatus, setWalletStatus] = useState<WalletStatus | null>(null);
 
-	const loadStatus = async () => {
+	const loadStatus = useCallback(async () => {
 		setViewState("loading");
 		const status = await getStatus();
 		setWalletStatus(status);
 		setViewState(status.status);
-	};
+	}, []);
 
 	useEffect(() => {
 		loadStatus();
-	}, []);
+	}, [loadStatus]);
 
 	if (viewState === "loading") {
 		return (

@@ -1,17 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ModeToggle } from "@/components/mode-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ModeToggle } from "@/components/mode-toggle";
-import type { KeyInfo, StateInfo, ProfileData } from "@/lib/api";
-import { logout, exportSeed, saveProfile, getSecurityIconUrl } from "@/lib/api";
+import type { KeyInfo, ProfileData, StateInfo } from "@/lib/api";
+import { exportSeed, getSecurityIconUrl, logout, saveProfile } from "@/lib/api";
 
 interface DashboardProps {
 	keys: KeyInfo[];
@@ -21,7 +28,9 @@ interface DashboardProps {
 
 export function Dashboard({ keys, states, onLogout }: DashboardProps) {
 	const [exportPassword, setExportPassword] = useState("");
-	const [exportResult, setExportResult] = useState<{ mnemonic?: string; error?: string } | null>(null);
+	const [exportResult, setExportResult] = useState<{ mnemonic?: string; error?: string } | null>(
+		null,
+	);
 	const [isExporting, setIsExporting] = useState(false);
 	const [exportDialogOpen, setExportDialogOpen] = useState(false);
 	const [profileDialogOpen, setProfileDialogOpen] = useState(false);
@@ -94,15 +103,19 @@ export function Dashboard({ keys, states, onLogout }: DashboardProps) {
 						<ModeToggle />
 						<Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
 							<DialogTrigger asChild>
-								<Button variant="outline" size="sm" onClick={() => {
-									if (globalState) {
-										setProfileData({
-											displayName: globalState.displayName,
-											paymail: globalState.paymail,
-											bapID: globalState.bapID,
-										});
-									}
-								}}>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										if (globalState) {
+											setProfileData({
+												displayName: globalState.displayName,
+												paymail: globalState.paymail,
+												bapID: globalState.bapID,
+											});
+										}
+									}}
+								>
 									Edit Profile
 								</Button>
 							</DialogTrigger>
@@ -117,7 +130,9 @@ export function Dashboard({ keys, states, onLogout }: DashboardProps) {
 										<Input
 											id="displayName"
 											value={profileData.displayName || ""}
-											onChange={(e) => setProfileData({ ...profileData, displayName: e.target.value })}
+											onChange={(e) =>
+												setProfileData({ ...profileData, displayName: e.target.value })
+											}
 										/>
 									</div>
 									<div className="space-y-2">
@@ -145,20 +160,27 @@ export function Dashboard({ keys, states, onLogout }: DashboardProps) {
 								</div>
 							</DialogContent>
 						</Dialog>
-						<Dialog open={exportDialogOpen} onOpenChange={(open) => {
-							setExportDialogOpen(open);
-							if (!open) {
-								setExportPassword("");
-								setExportResult(null);
-							}
-						}}>
+						<Dialog
+							open={exportDialogOpen}
+							onOpenChange={(open) => {
+								setExportDialogOpen(open);
+								if (!open) {
+									setExportPassword("");
+									setExportResult(null);
+								}
+							}}
+						>
 							<DialogTrigger asChild>
-								<Button variant="outline" size="sm">Export</Button>
+								<Button variant="outline" size="sm">
+									Export
+								</Button>
 							</DialogTrigger>
 							<DialogContent>
 								<DialogHeader>
 									<DialogTitle>Export Wallet Seed</DialogTitle>
-									<DialogDescription>Enter your password to reveal your seed phrase.</DialogDescription>
+									<DialogDescription>
+										Enter your password to reveal your seed phrase.
+									</DialogDescription>
 								</DialogHeader>
 								{!exportResult?.mnemonic ? (
 									<div className="space-y-4">
@@ -176,7 +198,11 @@ export function Dashboard({ keys, states, onLogout }: DashboardProps) {
 										{exportResult?.error && (
 											<p className="text-sm text-destructive">{exportResult.error}</p>
 										)}
-										<Button onClick={handleExport} disabled={isExporting || !exportPassword} className="w-full">
+										<Button
+											onClick={handleExport}
+											disabled={isExporting || !exportPassword}
+											className="w-full"
+										>
 											{isExporting ? "Decrypting..." : "Export"}
 										</Button>
 									</div>
@@ -184,8 +210,8 @@ export function Dashboard({ keys, states, onLogout }: DashboardProps) {
 									<div className="space-y-4">
 										<div className="p-3 bg-muted rounded-md">
 											<p className="text-xs text-muted-foreground mb-2">
-												The derivation path follows the BIP44 standard with a twist:
-												A new account is created per web host, using branch "2".
+												The derivation path follows the BIP44 standard with a twist: A new account
+												is created per web host, using branch "2".
 											</p>
 										</div>
 										<div className="space-y-2">
@@ -194,14 +220,20 @@ export function Dashboard({ keys, states, onLogout }: DashboardProps) {
 												{exportResult.mnemonic}
 											</div>
 										</div>
-										<Button onClick={() => copyToClipboard(exportResult.mnemonic!)} variant="outline" className="w-full">
+										<Button
+											onClick={() => copyToClipboard(exportResult.mnemonic!)}
+											variant="outline"
+											className="w-full"
+										>
 											Copy to Clipboard
 										</Button>
 									</div>
 								)}
 							</DialogContent>
 						</Dialog>
-						<Button variant="outline" size="sm" onClick={handleLogout}>Logout</Button>
+						<Button variant="outline" size="sm" onClick={handleLogout}>
+							Logout
+						</Button>
 					</div>
 				</div>
 			</header>
@@ -218,7 +250,8 @@ export function Dashboard({ keys, states, onLogout }: DashboardProps) {
 								Keys are created automatically when websites request authentication.
 							</p>
 							<p className="text-xs text-muted-foreground">
-								Visit a TokenPass-enabled app to create your first key, or use the <strong>Export</strong> button above to back up your seed phrase.
+								Visit a TokenPass-enabled app to create your first key, or use the{" "}
+								<strong>Export</strong> button above to back up your seed phrase.
 							</p>
 						</CardContent>
 					</Card>
@@ -244,8 +277,8 @@ export function Dashboard({ keys, states, onLogout }: DashboardProps) {
 													<>
 														<Separator />
 														<div className="space-y-1">
-															{hostStates.map((state, idx) => (
-																<div key={idx} className="text-sm">
+															{hostStates.map((state) => (
+																<div key={state.accessToken || state.host} className="text-sm">
 																	{state.accessToken && (
 																		<div className="flex items-center gap-2">
 																			<Badge variant="outline" className="text-xs">

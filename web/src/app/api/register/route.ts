@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
 import { HD, Utils } from "@bsv/sdk";
 import { BAP } from "bsv-bap";
+import { type NextRequest, NextResponse } from "next/server";
 import { Key, Seed, State } from "@/lib/tokenpass/server";
 
 const { toArray } = Utils;
@@ -36,13 +36,10 @@ export async function POST(request: NextRequest) {
 
 	globalState = {
 		...globalState,
-		...Object.keys(newId.identityAttributes).reduce(
-			(acc: Record<string, unknown>, key: string) => {
-				acc[key] = newId.identityAttributes[key].value;
-				return acc;
-			},
-			{},
-		),
+		...Object.keys(newId.identityAttributes).reduce((acc: Record<string, unknown>, key: string) => {
+			acc[key] = newId.identityAttributes[key].value;
+			return acc;
+		}, {}),
 		bapID: newId.identityKey,
 	};
 	await State.update(globalState);

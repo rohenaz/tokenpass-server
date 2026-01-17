@@ -37,9 +37,7 @@ class MnemonicEN {
 
 function generateEntropy(bitLength: number): Uint8Array {
 	if (bitLength % 32 !== 0 || bitLength < 128 || bitLength > 256) {
-		throw new Error(
-			"Invalid bit length. Valid options are: 128, 160, 192, 224, 256",
-		);
+		throw new Error("Invalid bit length. Valid options are: 128, 160, 192, 224, 256");
 	}
 	return randomBytes(bitLength / 8);
 }
@@ -47,9 +45,10 @@ function generateEntropy(bitLength: number): Uint8Array {
 function entropyToMnemonic(entropy: Uint8Array): MnemonicEN {
 	const entropyBits = uint8ArrayToBinaryString(entropy);
 	const checksumHash = Hash.sha256(Array.from(entropy));
-	const checksumBits = uint8ArrayToBinaryString(
-		new Uint8Array(checksumHash),
-	).substring(0, (entropy.length * 8) / 32);
+	const checksumBits = uint8ArrayToBinaryString(new Uint8Array(checksumHash)).substring(
+		0,
+		(entropy.length * 8) / 32,
+	);
 
 	const bits = entropyBits + checksumBits;
 	const mnemonicWords: string[] = [];

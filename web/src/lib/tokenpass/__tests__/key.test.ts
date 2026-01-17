@@ -1,11 +1,11 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import Key from "../key";
-import * as wallet from "../wallet/index";
-import Datastore from "@seald-io/nedb";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync, rmSync, existsSync } from "node:fs";
-import type { SeedData, KeyRecord } from "../types";
+import Datastore from "@seald-io/nedb";
+import Key from "../key";
+import type { SeedData } from "../types";
+import * as wallet from "../wallet/index";
 
 describe("Key", () => {
 	let testDbPath: string;
@@ -22,8 +22,9 @@ describe("Key", () => {
 			wallet: {
 				sign: wallet.sign,
 				encrypt: wallet.encrypt,
-				create: wallet.create,
-				derive: wallet.derive,
+				decrypt: wallet.decrypt,
+				createType42: wallet.createType42,
+				deriveType42: wallet.deriveType42,
 			},
 			Datastore,
 		});
@@ -50,7 +51,7 @@ describe("Key", () => {
 
 			const retrieved = key.getSeed();
 			expect(retrieved).toBe(seed);
-			expect(retrieved!.hex).toBe(seed.hex);
+			expect(retrieved?.hex).toBe(seed.hex);
 		});
 
 		test("should allow setting seed to null", () => {
@@ -63,29 +64,20 @@ describe("Key", () => {
 			const seed2 = wallet.seed(undefined, "password2");
 
 			key.setSeed(seed1);
-			expect(key.getSeed()!.hex).toBe(seed1.hex);
+			expect(key.getSeed()?.hex).toBe(seed1.hex);
 
 			key.setSeed(seed2);
-			expect(key.getSeed()!.hex).toBe(seed2.hex);
+			expect(key.getSeed()?.hex).toBe(seed2.hex);
 		});
 	});
 
-	describe("BIP44 derivation", () => {
-		test("should use Starfish branch (2) for key derivation", async () => {
+	describe("Type42 derivation", () => {
+		test("should use BRC-43 invoice numbers for key derivation", async () => {
 			const host = "example.com";
 			const createdKey = await key.findOrCreate({ host });
 
-			// Path should be m/44'/0'/0'/2/0 for first account
-			expect(createdKey!.path).toBe("m/44'/0'/0'/2/0");
-		});
-
-		test("should use BIP44 path with account incrementing per host", async () => {
-			const hosts = ["example.com", "test.com", "demo.com"];
-
-			for (let i = 0; i < hosts.length; i++) {
-				const createdKey = await key.findOrCreate({ host: hosts[i] });
-				expect(createdKey!.path).toBe(`m/44'/0'/${i}'/2/0`);
-			}
+			// Path should be the BRC-43 invoice number with security level 2
+			expect(createdKey?.path).toBe(`2-sigma auth-${host}`);
 		});
 
 		test("derived keys should be deterministic from seed", async () => {
@@ -100,8 +92,9 @@ describe("Key", () => {
 				wallet: {
 					sign: wallet.sign,
 					encrypt: wallet.encrypt,
-					create: wallet.create,
-					derive: wallet.derive,
+					decrypt: wallet.decrypt,
+					createType42: wallet.createType42,
+					deriveType42: wallet.deriveType42,
 				},
 				Datastore,
 			});
@@ -110,8 +103,8 @@ describe("Key", () => {
 			const key2Result = await key2.findOrCreate({ host });
 
 			// Should derive same keys from same seed
-			expect(key2Result!.address).toBe(key1!.address);
-			expect(key2Result!.pub).toBe(key1!.pub);
+			expect(key2Result?.address).toBe(key1?.address);
+			expect(key2Result?.pub).toBe(key1?.pub);
 
 			// Clean up
 			rmSync(testDbPath2, { recursive: true, force: true });
@@ -129,8 +122,9 @@ describe("Key", () => {
 				wallet: {
 					sign: wallet.sign,
 					encrypt: wallet.encrypt,
-					create: wallet.create,
-					derive: wallet.derive,
+					decrypt: wallet.decrypt,
+					createType42: wallet.createType42,
+					deriveType42: wallet.deriveType42,
 				},
 				Datastore,
 			});
@@ -140,8 +134,8 @@ describe("Key", () => {
 			const key2Result = await key2.findOrCreate({ host });
 
 			// Should derive different keys from different seeds
-			expect(key2Result!.address).not.toBe(key1!.address);
-			expect(key2Result!.pub).not.toBe(key1!.pub);
+			expect(key2Result?.address).not.toBe(key1?.address);
+			expect(key2Result?.pub).not.toBe(key1?.pub);
 
 			// Clean up
 			rmSync(testDbPath2, { recursive: true, force: true });
@@ -154,10 +148,10 @@ describe("Key", () => {
 			const createdKey = await key.findOrCreate({ host });
 
 			expect(createdKey).toBeDefined();
-			expect(createdKey!.host).toBe(host);
-			expect(createdKey!.address).toBeDefined();
-			expect(createdKey!.pub).toBeDefined();
-			expect(createdKey!.priv).toBeDefined();
+			expect(createdKey?.host).toBe(host);
+			expect(createdKey?.address).toBeDefined();
+			expect(createdKey?.pub).toBeDefined();
+			expect(createdKey?.priv).toBeDefined();
 		});
 
 		test("should return existing key for known host", async () => {
@@ -165,9 +159,9 @@ describe("Key", () => {
 			const key1 = await key.findOrCreate({ host });
 			const key2 = await key.findOrCreate({ host });
 
-			expect(key2!.address).toBe(key1!.address);
-			expect(key2!.pub).toBe(key1!.pub);
-			expect(key2!.path).toBe(key1!.path);
+			expect(key2?.address).toBe(key1?.address);
+			expect(key2?.pub).toBe(key1?.pub);
+			expect(key2?.path).toBe(key1?.path);
 		});
 
 		test("should create different keys for different hosts", async () => {
@@ -177,10 +171,10 @@ describe("Key", () => {
 			const key1 = await key.findOrCreate({ host: host1 });
 			const key2 = await key.findOrCreate({ host: host2 });
 
-			expect(key1!.address).not.toBe(key2!.address);
-			expect(key1!.pub).not.toBe(key2!.pub);
-			expect(key1!.host).toBe(host1);
-			expect(key2!.host).toBe(host2);
+			expect(key1?.address).not.toBe(key2?.address);
+			expect(key1?.pub).not.toBe(key2?.pub);
+			expect(key1?.host).toBe(host1);
+			expect(key2?.host).toBe(host2);
 		});
 
 		test("should return null if no seed is set", async () => {
@@ -206,16 +200,16 @@ describe("Key", () => {
 
 			const found = await key.findOne({ host });
 			expect(found).toBeDefined();
-			expect(found!.address).toBe(created!.address);
+			expect(found?.address).toBe(created?.address);
 		});
 
 		test("should find key by address", async () => {
 			const host = "example.com";
 			const created = await key.findOrCreate({ host });
 
-			const found = await key.findOne({ address: created!.address });
+			const found = await key.findOne({ address: created?.address });
 			expect(found).toBeDefined();
-			expect(found!.host).toBe(host);
+			expect(found?.host).toBe(host);
 		});
 
 		test("should return null for non-existent host", async () => {
@@ -228,9 +222,9 @@ describe("Key", () => {
 			await key.findOrCreate({ host });
 
 			const found = await key.findOne({ host });
-			expect(found!.priv).toBeDefined();
+			expect(found?.priv).toBeDefined();
 			// WIF format starts with L or K for mainnet compressed
-			expect(found!.priv).toMatch(/^[LK]/);
+			expect(found?.priv).toMatch(/^[LK]/);
 		});
 	});
 
@@ -307,7 +301,7 @@ describe("Key", () => {
 
 	describe("insert", () => {
 		test("should insert key directly", async () => {
-			const keyData = await wallet.create(testSeed, 0, { host: "example.com" });
+			const keyData = await wallet.createType42(testSeed, "example.com");
 			const inserted = await key.insert(keyData);
 
 			expect(inserted).toBeDefined();
@@ -316,12 +310,12 @@ describe("Key", () => {
 		});
 
 		test("inserted key should be retrievable", async () => {
-			const keyData = await wallet.create(testSeed, 0, { host: "example.com" });
+			const keyData = await wallet.createType42(testSeed, "example.com");
 			await key.insert(keyData);
 
 			const found = await key.findOne({ host: "example.com" });
 			expect(found).toBeDefined();
-			expect(found!.address).toBe(keyData.address);
+			expect(found?.address).toBe(keyData.address);
 		});
 	});
 
@@ -334,7 +328,7 @@ describe("Key", () => {
 			const signed = key.sign({ message, key: createdKey! });
 
 			expect(signed).toBeDefined();
-			expect(signed.address).toBe(createdKey!.address);
+			expect(signed.address).toBe(createdKey?.address);
 			expect(signed.message).toBe(message);
 			expect(signed.sig).toBeDefined();
 			expect(signed.ts).toBeDefined();
@@ -381,8 +375,8 @@ describe("Key", () => {
 		});
 	});
 
-	describe("encrypt", () => {
-		test("should encrypt message with key", async () => {
+	describe("encrypt/decrypt", () => {
+		test("should encrypt message with ECIES", async () => {
 			const host = "example.com";
 			const createdKey = await key.findOrCreate({ host });
 			const message = "Secret message";
@@ -390,26 +384,25 @@ describe("Key", () => {
 			const encrypted = key.encrypt({ message, key: createdKey! });
 
 			expect(encrypted).toBeDefined();
-			expect(encrypted.address).toBe(createdKey!.address);
-			expect(encrypted.data).toBeDefined();
-			expect(encrypted.data.iv).toBeDefined();
-			expect(encrypted.data.encryptedData).toBeDefined();
+			expect(encrypted.address).toBe(createdKey?.address);
+			// ECIES returns hex string
+			expect(typeof encrypted.data).toBe("string");
+			expect(encrypted.data).toMatch(/^[0-9a-f]+$/);
 			expect(encrypted.ts).toBeDefined();
 		});
 
-		test("encrypted data should have IV and encryptedData", async () => {
+		test("should decrypt ECIES encrypted data", async () => {
 			const host = "example.com";
 			const createdKey = await key.findOrCreate({ host });
+			const message = "Secret message";
 
-			const encrypted = key.encrypt({ message: "test", key: createdKey! });
+			const encrypted = key.encrypt({ message, key: createdKey! });
+			const decrypted = key.decrypt({ ciphertext: encrypted.data, key: createdKey! });
 
-			expect(typeof encrypted.data.iv).toBe("string");
-			expect(typeof encrypted.data.encryptedData).toBe("string");
-			expect(encrypted.data.iv).toMatch(/^[0-9a-f]+$/);
-			expect(encrypted.data.encryptedData).toMatch(/^[0-9a-f]+$/);
+			expect(decrypted).toBe(message);
 		});
 
-		test("should produce different ciphertext for same message (unique IV)", async () => {
+		test("should produce different ciphertext for same message (ECIES randomization)", async () => {
 			const host = "example.com";
 			const createdKey = await key.findOrCreate({ host });
 			const message = "Same message";
@@ -417,8 +410,14 @@ describe("Key", () => {
 			const encrypted1 = key.encrypt({ message, key: createdKey! });
 			const encrypted2 = key.encrypt({ message, key: createdKey! });
 
-			expect(encrypted1.data.iv).not.toBe(encrypted2.data.iv);
-			expect(encrypted1.data.encryptedData).not.toBe(encrypted2.data.encryptedData);
+			// ECIES includes random ephemeral key, so same message produces different ciphertext
+			expect(encrypted1.data).not.toBe(encrypted2.data);
+
+			// But both should decrypt to same message
+			const decrypted1 = key.decrypt({ ciphertext: encrypted1.data, key: createdKey! });
+			const decrypted2 = key.decrypt({ ciphertext: encrypted2.data, key: createdKey! });
+			expect(decrypted1).toBe(message);
+			expect(decrypted2).toBe(message);
 		});
 	});
 
@@ -440,9 +439,9 @@ describe("Key", () => {
 			const key1 = await key.findOrCreate({ host: "example.com" });
 			const key2 = await key.findOrCreate({ host: "test.com" });
 
-			expect(key1!.priv).not.toBe(key2!.priv);
-			expect(key1!.pub).not.toBe(key2!.pub);
-			expect(key1!.address).not.toBe(key2!.address);
+			expect(key1?.priv).not.toBe(key2?.priv);
+			expect(key1?.pub).not.toBe(key2?.pub);
+			expect(key1?.address).not.toBe(key2?.address);
 		});
 
 		test("same host should always get same key", async () => {
@@ -452,10 +451,10 @@ describe("Key", () => {
 			const key2 = await key.findOrCreate({ host });
 			const key3 = await key.findOrCreate({ host });
 
-			expect(key2!.address).toBe(key1!.address);
-			expect(key3!.address).toBe(key1!.address);
-			expect(key2!.priv).toBe(key1!.priv);
-			expect(key3!.priv).toBe(key1!.priv);
+			expect(key2?.address).toBe(key1?.address);
+			expect(key3?.address).toBe(key1?.address);
+			expect(key2?.priv).toBe(key1?.priv);
+			expect(key3?.priv).toBe(key1?.priv);
 		});
 	});
 
@@ -469,27 +468,29 @@ describe("Key", () => {
 			const dbContent = await Bun.file(dbFile).text();
 
 			// Private key WIF should not appear in database
-			expect(dbContent).not.toContain(createdKey!.priv!);
+			if (createdKey?.priv) {
+				expect(dbContent).not.toContain(createdKey.priv);
+			}
 		});
 
-		test("should store path for key derivation", async () => {
+		test("should store invoice number for Type42 derivation", async () => {
 			const host = "example.com";
 			await key.findOrCreate({ host });
 
 			const found = await key.findOne({ host });
-			expect(found!.path).toBeDefined();
-			expect(found!.path).toMatch(/^m\/44'\/0'\/\d+'\/2\/0$/);
+			expect(found?.path).toBeDefined();
+			expect(found?.path).toBe(`2-sigma auth-${host}`);
 		});
 
-		test("should be able to rederive private key from path", async () => {
+		test("should be able to rederive private key from invoice number", async () => {
 			const host = "example.com";
 			const created = await key.findOrCreate({ host });
 
-			// Derive key manually using same path
-			const derived = wallet.derive(testSeed, created!.path);
+			// Derive key manually using same invoice number
+			const derived = wallet.deriveType42(testSeed, created!.path);
 
-			expect(derived.privKey.toWif()).toBe(created!.priv);
-			expect(derived.privKey.toAddress()).toBe(created!.address);
+			expect(derived.privateKey.toWif()).toBe(created?.priv);
+			expect(derived.publicKey.toAddress()).toBe(created?.address);
 		});
 	});
 
@@ -498,24 +499,24 @@ describe("Key", () => {
 			const host = "example.com:8080/path?query=1";
 			const createdKey = await key.findOrCreate({ host });
 
-			expect(createdKey!.host).toBe(host);
+			expect(createdKey?.host).toBe(host);
 
 			const found = await key.findOne({ host });
-			expect(found!.address).toBe(createdKey!.address);
+			expect(found?.address).toBe(createdKey?.address);
 		});
 
 		test("should handle unicode in host", async () => {
 			const host = "例え.com";
 			const createdKey = await key.findOrCreate({ host });
 
-			expect(createdKey!.host).toBe(host);
+			expect(createdKey?.host).toBe(host);
 		});
 
 		test("should handle very long host names", async () => {
-			const host = "a".repeat(1000) + ".com";
+			const host = `${"a".repeat(1000)}.com`;
 			const createdKey = await key.findOrCreate({ host });
 
-			expect(createdKey!.host).toBe(host);
+			expect(createdKey?.host).toBe(host);
 		});
 	});
 
@@ -543,9 +544,7 @@ describe("Key", () => {
 		test("should handle concurrent findOrCreate for different hosts", async () => {
 			const hosts = ["example.com", "test.com", "demo.com"];
 
-			const results = await Promise.all(
-				hosts.map((host) => key.findOrCreate({ host })),
-			);
+			const results = await Promise.all(hosts.map((host) => key.findOrCreate({ host })));
 
 			// All should return keys
 			expect(results.filter((r) => r !== null).length).toBe(hosts.length);

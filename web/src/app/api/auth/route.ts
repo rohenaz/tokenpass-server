@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
-import { Key, Seed, State, expireSelectionToTime } from "@/lib/tokenpass/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { expireSelectionToTime, Key, Seed, State } from "@/lib/tokenpass/server";
 
 /**
  * POST /api/auth
@@ -46,9 +46,7 @@ export async function POST(request: NextRequest) {
 			// Wallet is unlocked, create access token without password
 			const expireTime = expireSelectionToTime(expireSelection);
 			const accessToken = randomUUID();
-			const scopeList = Array.isArray(scopes)
-				? scopes
-				: scopes?.split(",") || [];
+			const scopeList = Array.isArray(scopes) ? scopes : scopes?.split(",") || [];
 
 			const newState = {
 				host,
@@ -74,9 +72,7 @@ export async function POST(request: NextRequest) {
 
 			const expireTime = expireSelectionToTime(expireSelection);
 			const accessToken = randomUUID();
-			const scopeList = Array.isArray(scopes)
-				? scopes
-				: scopes?.split(",") || [];
+			const scopeList = Array.isArray(scopes) ? scopes : scopes?.split(",") || [];
 
 			const newState = {
 				host,
@@ -95,14 +91,8 @@ export async function POST(request: NextRequest) {
 			});
 		}
 
-		return NextResponse.json(
-			{ error: "Invalid password", success: false },
-			{ status: 401 },
-		);
+		return NextResponse.json({ error: "Invalid password", success: false }, { status: 401 });
 	} catch (e) {
-		return NextResponse.json(
-			{ success: false, error: String(e) },
-			{ status: 500 },
-		);
+		return NextResponse.json({ success: false, error: String(e) }, { status: 500 });
 	}
 }

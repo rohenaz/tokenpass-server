@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { ModeToggle } from "@/components/mode-toggle";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ModeToggle } from "@/components/mode-toggle";
-import { login, getSecurityIconUrl } from "@/lib/api";
+import { getSecurityIconUrl, login } from "@/lib/api";
 
 interface LoginProps {
 	onSuccess: () => void;
@@ -72,9 +72,7 @@ export function Login({ onSuccess }: LoginProps) {
 									autoFocus
 								/>
 							</div>
-							{error && (
-								<p className="text-sm text-destructive">{error}</p>
-							)}
+							{error && <p className="text-sm text-destructive">{error}</p>}
 							<Button type="submit" className="w-full" disabled={isLoading}>
 								{isLoading ? "Unlocking..." : "Unlock Wallet"}
 							</Button>

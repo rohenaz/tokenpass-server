@@ -1,17 +1,18 @@
-import { BigNumber, BSM, HD, PrivateKey, PublicKey, Signature, Utils } from "@bsv/sdk";
+import { BigNumber, BSM, ECIES, Hash, HD, PrivateKey, PublicKey, Signature, Utils } from "@bsv/sdk";
 import { getAuthToken, parseAuthToken, verifyAuthToken } from "bitcoin-auth";
-import { encrypt as enc } from "../crypt";
 import type { KeyRecord, SeedData, SignedMessage } from "../types";
 import { generateMnemonic } from "../utils/mnemonic";
 
-const { toArray, toHex } = Utils;
+const { toArray, toHex, toUTF8 } = Utils;
 
-export const sign = (
-	message: string,
-	key: KeyRecord,
-	encoding?: BufferEncoding,
-): SignedMessage => {
-	const privateKey = PrivateKey.fromWif(key.priv!);
+/**
+ * Sign a message using BSM (Bitcoin Signed Message)
+ */
+export const sign = (message: string, key: KeyRecord, encoding?: BufferEncoding): SignedMessage => {
+	if (!key.priv) {
+		throw new Error("Private key is required to sign");
+	}
+	const privateKey = PrivateKey.fromWif(key.priv);
 	const messageArray = encoding
 		? toArray(message, encoding as "utf8" | "hex" | "base64")
 		: toArray(message, "utf8");
@@ -19,56 +20,102 @@ export const sign = (
 	return {
 		address: key.address,
 		message: message,
-		// BSM.sign returns a base64 string, but TypeScript types it as string | Signature
 		sig: sig as string,
 		ts: Date.now(),
 	};
 };
 
+/**
+ * Encrypt data using ECIES with the key's corresponding public key
+ * This is self-encryption - only the holder of this private key can decrypt
+ */
 export const encrypt = (
 	message: string,
 	key: KeyRecord,
-): { address: string; data: any; ts: number } => {
-	const privateKey = PrivateKey.fromWif(key.priv!);
-	const privKeyBytes = privateKey.toArray();
-	const data = enc(message, undefined, Buffer.from(privKeyBytes));
+): { address: string; data: string; ts: number } => {
+	if (!key.priv) {
+		throw new Error("Private key is required to encrypt");
+	}
+	const privateKey = PrivateKey.fromWif(key.priv);
+	const publicKey = privateKey.toPublicKey();
+
+	const messageBytes = toArray(message, "utf8");
+	const encryptedBytes = ECIES.electrumEncrypt(messageBytes, publicKey);
+
 	return {
 		address: key.address,
-		data,
+		data: toHex(encryptedBytes),
 		ts: Date.now(),
 	};
 };
 
-export const create = async (
-	seedData: SeedData,
-	account: number,
-	o: { host: string },
-): Promise<Omit<KeyRecord, "priv">> => {
-	/********************************************************************
-	 * The derivation path follows the
-	 * BIP44 standard with a twist:
-	 *
-	 * - A new account is created per web host
-	 * - It uses a new branch of "2" instead of (0 or 1)
-	 *
-	 * This way there is no overlap with existing BIP44 wallets but
-	 * the wallet scheme can seamlessly integrate with them.
-	 *
-	 ********************************************************************/
-	const StarfishBranch = 2;
-	const path = `m/44'/0'/${account}'/${StarfishBranch}/0`;
-	const derived = seedData.key.derive(path);
-	const address = derived.privKey.toAddress();
-	const keys = {
-		path,
-		pub: derived.pubKey.toString(),
-		address,
-		host: o.host,
-	};
-
-	return keys;
+/**
+ * Decrypt ECIES-encrypted data
+ */
+export const decrypt = (ciphertext: string, key: KeyRecord): string => {
+	if (!key.priv) {
+		throw new Error("Private key is required to decrypt");
+	}
+	const privateKey = PrivateKey.fromWif(key.priv);
+	const ciphertextBytes = toArray(ciphertext, "hex");
+	const decryptedBytes = ECIES.electrumDecrypt(ciphertextBytes, privateKey);
+	return toUTF8(decryptedBytes);
 };
 
+/**
+ * Convert seed hex to a master PrivateKey for Type42 derivation
+ * Uses SHA256 of the seed bytes to get a 256-bit key
+ */
+export const seedToMasterKey = (seedHex: string): PrivateKey => {
+	const seedBytes = toArray(seedHex, "hex");
+	// SHA256 of seed produces 256-bit private key
+	const keyBytes = Hash.sha256(seedBytes);
+	return PrivateKey.fromString(toHex(keyBytes), "hex");
+};
+
+/**
+ * Create a new Type42-derived key for a host
+ * Uses self-derivation (own public key as counterparty)
+ * Invoice number follows BRC-43 format: {securityLevel}-{protocol}-{keyID}
+ */
+export const createType42 = async (
+	seedData: SeedData,
+	host: string,
+): Promise<Omit<KeyRecord, "priv">> => {
+	// BRC-43 format: security level 2 (user-approved per app)
+	const invoiceNumber = `2-sigma auth-${host}`;
+	const masterKey = seedToMasterKey(seedData.hex);
+
+	const childKey = masterKey.deriveChild(masterKey.toPublicKey(), invoiceNumber);
+
+	return {
+		path: invoiceNumber,
+		pub: childKey.toPublicKey().toString(),
+		address: childKey.toPublicKey().toAddress(),
+		host,
+	};
+};
+
+/**
+ * Derive a key using Type42 from an invoice number
+ */
+export const deriveType42 = (
+	seedData: SeedData,
+	invoiceNumber: string,
+): { privateKey: PrivateKey; publicKey: PublicKey } => {
+	const masterKey = seedToMasterKey(seedData.hex);
+
+	const childKey = masterKey.deriveChild(masterKey.toPublicKey(), invoiceNumber);
+
+	return {
+		privateKey: childKey,
+		publicKey: childKey.toPublicKey(),
+	};
+};
+
+/**
+ * Create seed data from hex or generate new from passphrase
+ */
 export const seed = (hex?: string, passphrase?: string, mnemonicPhrase?: string): SeedData => {
 	let bytes: number[];
 	let mnemonic: string | undefined;
@@ -93,13 +140,9 @@ export const seed = (hex?: string, passphrase?: string, mnemonicPhrase?: string)
 	};
 };
 
-export const derive = (
-	seedData: SeedData,
-	path: string,
-): ReturnType<HD["derive"]> => {
-	return seedData.key.derive(path);
-};
-
+/**
+ * Verify a BSM signature
+ */
 export const verify = (
 	message: string,
 	address: string,
@@ -111,20 +154,14 @@ export const verify = (
 		: toArray(message, "utf8");
 
 	try {
-		// Parse the compact signature from base64
 		const sigBytes = toArray(sig, "base64");
-
-		// Extract recovery flag from first byte (27-30: uncompressed, 31-34: compressed)
 		const recoveryByte = sigBytes[0];
 		const recovery = recoveryByte >= 31 ? recoveryByte - 31 : recoveryByte - 27;
 
 		const signature = Signature.fromCompact(sigBytes);
-
-		// Get the magic hash
 		const msgHashArray = BSM.magicHash(messageArray);
 		const msgHash = new BigNumber(msgHashArray);
 
-		// Recover the public key from the signature
 		const recoveredPubKey = signature.RecoverPublicKey(recovery, msgHash);
 		const recoveredAddress = recoveredPubKey.toAddress();
 
@@ -134,23 +171,8 @@ export const verify = (
 	}
 };
 
-// TODO: Implement UTXO store lookup to find key for transaction
-export const keyForTx = async (
-	_txid: string | undefined,
-): Promise<KeyRecord | null> => {
-	// Placeholder: This should query a UTXO store to find the key that owns the txid
-	return null;
-};
-
 /**
  * Create a bitcoin-auth token for API authentication
- * Format: Base64 encoded JSON with pubkey, scheme, timestamp, path, signature
- *
- * @param key - KeyRecord containing the private key (WIF)
- * @param requestPath - The API path being authenticated
- * @param body - Optional request body to include in signature
- * @param scheme - Signature scheme ('bsm' or 'brc77', default: 'brc77')
- * @returns Base64 encoded auth token string
  */
 export const createAuthToken = (
 	key: KeyRecord,
@@ -172,12 +194,6 @@ export const createAuthToken = (
 
 /**
  * Verify a bitcoin-auth token
- *
- * @param token - The auth token to verify
- * @param requestPath - The expected request path
- * @param body - The expected request body (if any)
- * @param timePad - Maximum age of token in seconds (default: 300 = 5 minutes)
- * @returns True if token is valid
  */
 export const verifyToken = (
 	token: string,
@@ -189,7 +205,7 @@ export const verifyToken = (
 		token,
 		{
 			requestPath,
-			timestamp: "", // verifyAuthToken will check the timestamp from the token
+			timestamp: "",
 			body,
 		},
 		timePad,
@@ -198,50 +214,16 @@ export const verifyToken = (
 
 /**
  * Parse a bitcoin-auth token to extract its components
- *
- * @param token - The auth token to parse
- * @returns Parsed token object or null if invalid
  */
 export const parseToken = (token: string) => {
 	return parseAuthToken(token);
 };
 
-// Re-export bitcoin-auth functions for convenience
 export { getAuthToken, parseAuthToken, verifyAuthToken };
 
 /**
- * Type42 (BRC-42) Key Derivation
- *
- * Type42 uses ECDH-based key derivation instead of BIP32 paths.
- * This provides better privacy since derived keys are not linkable
- * without knowing both the master key and the counterparty's public key.
- *
- * For self-derivation (no counterparty), we use the master key's own
- * public key as the counterparty, with an invoice number as identifier.
- */
-
-/**
- * Convert seed hex to a master PrivateKey for Type42 derivation
- * Uses SHA256 of the seed bytes to get a 256-bit key
- *
- * @param seedHex - The seed hex string
- * @returns PrivateKey for Type42 derivation
- */
-export const seedToMasterKey = (seedHex: string): PrivateKey => {
-	const seedBytes = toArray(seedHex, "hex");
-	// Use the first 32 bytes of the seed as the key
-	// (Standard HD wallets use 64-byte seeds, first 32 for key, rest for chaincode)
-	const keyBytes = seedBytes.slice(0, 32);
-	return new PrivateKey(keyBytes);
-};
-
-/**
  * Derive a child key for a specific host using Type42
- * Uses self-derivation (own public key as counterparty)
- *
- * @param masterKey - The master PrivateKey
- * @param host - The host name to derive key for
- * @returns Object with privateKey, address, and invoiceNumber
+ * Invoice number follows BRC-43 format: {securityLevel}-{protocol}-{keyID}
  */
 export const deriveKeyForHost = (
 	masterKey: PrivateKey,
@@ -251,13 +233,10 @@ export const deriveKeyForHost = (
 	address: string;
 	invoiceNumber: string;
 } => {
-	const invoiceNumber = `sigma-auth-${host}`;
+	// BRC-43 format: security level 2 (user-approved per app)
+	const invoiceNumber = `2-sigma auth-${host}`;
 
-	// Type42: self-derivation using own public key
-	const childKey = masterKey.deriveChild(
-		masterKey.toPublicKey(),
-		invoiceNumber,
-	);
+	const childKey = masterKey.deriveChild(masterKey.toPublicKey(), invoiceNumber);
 
 	return {
 		privateKey: childKey,
@@ -268,12 +247,8 @@ export const deriveKeyForHost = (
 
 /**
  * Derive a shared key for friend-based encryption using Type42
- * Uses ECDH with the friend's public key
- *
- * @param masterKey - The master PrivateKey
- * @param friendPubKeyHex - The friend's public key in hex
- * @param purpose - Purpose string for the derivation (e.g., 'encryption', 'signing')
- * @returns Object with privateKey and invoiceNumber
+ * Invoice number follows BRC-43 format: {securityLevel}-{protocol}-{keyID}
+ * Uses SHA256 hash of purpose for consistent key ID format
  */
 export const deriveSharedKey = (
 	masterKey: PrivateKey,
@@ -284,9 +259,10 @@ export const deriveSharedKey = (
 	invoiceNumber: string;
 } => {
 	const friendPubKey = PublicKey.fromString(friendPubKeyHex);
-	const invoiceNumber = `sigma-encrypt-${purpose}`;
+	// BRC-43 format: security level 2 with hashed purpose
+	const purposeHash = toHex(Hash.sha256(toArray(purpose, "utf8")));
+	const invoiceNumber = `2-encrypt-${purposeHash}`;
 
-	// Type42: ECDH derivation with friend's public key
 	const childKey = masterKey.deriveChild(friendPubKey, invoiceNumber);
 
 	return {
@@ -297,23 +273,17 @@ export const deriveSharedKey = (
 
 /**
  * Get the public key that should be shared with a friend for Type42 derivation
- * This is derived from our master key using the friend's BAP ID as context
- *
- * @param masterKey - The master PrivateKey
- * @param friendBapId - The friend's BAP ID
- * @returns Hex-encoded public key to share with the friend
+ * Used for BSocial friend protocol - Alice derives a key for Bob, then shares
+ * the public key in a friend request TX so Bob can encrypt messages TO Alice
+ * Invoice number follows BRC-43 format: {securityLevel}-{protocol}-{keyID}
+ * Uses SHA256 hash of friendBapId for consistent key ID format
  */
-export const getFriendPublicKey = (
-	masterKey: PrivateKey,
-	friendBapId: string,
-): string => {
-	const invoiceNumber = `sigma-friend-${friendBapId}`;
+export const getFriendPublicKey = (masterKey: PrivateKey, friendBapId: string): string => {
+	// BRC-43 format: security level 2 with hashed friend BAP ID
+	const seedHash = toHex(Hash.sha256(toArray(friendBapId, "utf8")));
+	const invoiceNumber = `2-friend-${seedHash}`;
 
-	// Derive a key specifically for this friend relationship
-	const childKey = masterKey.deriveChild(
-		masterKey.toPublicKey(),
-		invoiceNumber,
-	);
+	const childKey = masterKey.deriveChild(masterKey.toPublicKey(), invoiceNumber);
 
 	return childKey.toPublicKey().toString();
 };

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { minidenticon } from "minidenticons";
+import { NextResponse } from "next/server";
 import { Key } from "@/lib/tokenpass/server";
 
 export async function GET() {

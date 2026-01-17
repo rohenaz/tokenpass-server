@@ -95,7 +95,9 @@ export async function importSeed(data: {
 	return res.json();
 }
 
-export async function exportSeed(password: string): Promise<{ seed?: string; mnemonic?: string; error?: string }> {
+export async function exportSeed(
+	password: string,
+): Promise<{ seed?: string; mnemonic?: string; error?: string }> {
 	const res = await fetch("/api/export", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },

@@ -1,10 +1,10 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import State from "../state";
-import type { StateRecord } from "../state";
-import Datastore from "@seald-io/nedb";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync, rmSync, existsSync } from "node:fs";
+import Datastore from "@seald-io/nedb";
+import type { StateRecord } from "../state";
+import State from "../state";
 
 describe("State", () => {
 	let testDbPath: string;
@@ -641,9 +641,7 @@ describe("State", () => {
 
 			const found = await state.findOne({ host });
 			// At least one of the updates should be present
-			expect(
-				found!.displayName || found!.icon || found!.logo,
-			).toBeDefined();
+			expect(found!.displayName || found!.icon || found!.logo).toBeDefined();
 		});
 	});
 });

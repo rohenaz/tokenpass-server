@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
-import { Key, State } from "@/lib/tokenpass/server";
-import { PrivateKey, BSM, Utils } from "@bsv/sdk";
+import { BSM, PrivateKey, Utils } from "@bsv/sdk";
 import {
-	validateAccessToken,
-	extractAccessToken,
 	createErrorResponse,
+	extractAccessToken,
+	validateAccessToken,
 } from "@sigma-auth/better-auth-plugin/server/local";
+import { type NextRequest, NextResponse } from "next/server";
+import { Key, State } from "@/lib/tokenpass/server";
 
 const { toArray } = Utils;
 
@@ -21,15 +21,14 @@ const { toArray } = Utils;
  * Requires Authorization header with access token from /api/auth
  */
 export async function POST(request: NextRequest) {
+	if (!Key.getSeed()) {
+		return NextResponse.json(createErrorResponse("Wallet is locked. Please login first.", 1), {
+			status: 401,
+		});
+	}
+
 	const body = await request.json();
 	const { data } = body;
-
-	if (!Key.getSeed()) {
-		return NextResponse.json(
-			createErrorResponse("Wallet is locked. Please login first.", 1),
-			{ status: 401 },
-		);
-	}
 
 	const accessToken = extractAccessToken(request.headers.get("authorization"));
 	const validation = await validateAccessToken({
@@ -39,7 +38,7 @@ export async function POST(request: NextRequest) {
 
 	if (!validation.valid) {
 		return NextResponse.json(
-			createErrorResponse(validation.error!, validation.code),
+			createErrorResponse(validation.error ?? "Invalid token", validation.code),
 			{ status: 401 },
 		);
 	}
@@ -55,14 +54,17 @@ export async function POST(request: NextRequest) {
 	const key = await Key.findOrCreate({ host });
 
 	if (!key) {
-		return NextResponse.json(
-			createErrorResponse("Please create a wallet."),
-			{ status: 417 },
-		);
+		return NextResponse.json(createErrorResponse("Please create a wallet."), { status: 417 });
 	}
 
 	try {
-		const privateKey = PrivateKey.fromWif(key.priv!);
+		if (!key.priv) {
+			return NextResponse.json(
+				createErrorResponse("Key is missing private key - wallet may be locked."),
+				{ status: 500 },
+			);
+		}
+		const privateKey = PrivateKey.fromWif(key.priv);
 
 		// AIP signing: concatenate all hex buffers, then sign with BSM
 		const combinedBytes: number[] = [];

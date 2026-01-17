@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { ModeToggle } from "@/components/mode-toggle";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ModeToggle } from "@/components/mode-toggle";
 import { authorize, getSecurityIconUrl } from "@/lib/api";
 
 interface AuthProps {
@@ -132,7 +132,9 @@ export function Auth({ host, icon, scopes, returnURL }: AuthProps) {
 									{scopes.length > 0 ? (
 										<div className="flex flex-wrap gap-2">
 											{scopes.map((scope) => (
-												<Badge key={scope} variant="secondary">{scope}</Badge>
+												<Badge key={scope} variant="secondary">
+													{scope}
+												</Badge>
 											))}
 										</div>
 									) : (
@@ -155,9 +157,7 @@ export function Auth({ host, icon, scopes, returnURL }: AuthProps) {
 								</RadioGroup>
 							</div>
 
-							{error && (
-								<p className="text-sm text-destructive">{error}</p>
-							)}
+							{error && <p className="text-sm text-destructive">{error}</p>}
 
 							<Button type="submit" className="w-full" disabled={isLoading}>
 								{isLoading ? "Authorizing..." : "Allow"}

@@ -1,11 +1,10 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import Seed from "../seed";
-import * as wallet from "../wallet/index";
-import Datastore from "@seald-io/nedb";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync, rmSync, existsSync } from "node:fs";
-import type { SeedData } from "../types";
+import Datastore from "@seald-io/nedb";
+import Seed from "../seed";
+import * as wallet from "../wallet/index";
 
 describe("Seed", () => {
 	let testDbPath: string;
@@ -151,11 +150,7 @@ describe("Seed", () => {
 				Datastore,
 			});
 
-			const imported = await seed2.importKey(
-				original.hex,
-				password,
-				original.mnemonic,
-			);
+			const imported = await seed2.importKey(original.hex, password, original.mnemonic);
 
 			expect(imported.hex).toBe(original.hex);
 			expect(imported.mnemonic).toBe(original.mnemonic);

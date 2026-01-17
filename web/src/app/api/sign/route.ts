@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { Key, State, Wallet } from "@/lib/tokenpass/server";
 import {
-	validateAccessToken,
-	extractAccessToken,
 	createErrorResponse,
+	extractAccessToken,
+	validateAccessToken,
 } from "@sigma-auth/better-auth-plugin/server/local";
+import { type NextRequest, NextResponse } from "next/server";
+import { Key, State, Wallet } from "@/lib/tokenpass/server";
 
 /**
  * POST /api/sign
@@ -12,7 +12,7 @@ import {
  * Signs a message or creates a bitcoin-auth token.
  *
  * Request body options:
- * 1. Legacy BSM signing: { message: string, encoding?: string }
+ * 1. BSM signing: { message: string, encoding?: string }
  *    Returns: { address, message, sig, ts }
  *
  * 2. Bitcoin-auth token: { path: string, body?: string, signatureType?: 'bsm' | 'brc77' }
@@ -21,14 +21,13 @@ import {
  * Requires Authorization header with access token from /api/auth
  */
 export async function POST(request: NextRequest) {
-	const body = await request.json();
-
 	if (!Key.getSeed()) {
-		return NextResponse.json(
-			createErrorResponse("Wallet is locked. Please login first.", 1),
-			{ status: 401 },
-		);
+		return NextResponse.json(createErrorResponse("Wallet is locked. Please login first.", 1), {
+			status: 401,
+		});
 	}
+
+	const body = await request.json();
 
 	const accessToken = extractAccessToken(request.headers.get("authorization"));
 	const validation = await validateAccessToken({
@@ -38,7 +37,7 @@ export async function POST(request: NextRequest) {
 
 	if (!validation.valid) {
 		return NextResponse.json(
-			createErrorResponse(validation.error!, validation.code),
+			createErrorResponse(validation.error ?? "Invalid token", validation.code),
 			{ status: 401 },
 		);
 	}
@@ -47,10 +46,7 @@ export async function POST(request: NextRequest) {
 	const key = await Key.findOrCreate({ host });
 
 	if (!key) {
-		return NextResponse.json(
-			createErrorResponse("Please create a wallet."),
-			{ status: 417 },
-		);
+		return NextResponse.json(createErrorResponse("Please create a wallet."), { status: 417 });
 	}
 
 	// Check if this is a bitcoin-auth token request (has 'path' field)
@@ -58,12 +54,7 @@ export async function POST(request: NextRequest) {
 		const { path, body: requestBody, signatureType = "brc77" } = body;
 
 		try {
-			const token = Wallet.createAuthToken(
-				key,
-				path,
-				requestBody,
-				signatureType,
-			);
+			const token = Wallet.createAuthToken(key, path, requestBody, signatureType);
 
 			return NextResponse.json({
 				token,
@@ -79,7 +70,7 @@ export async function POST(request: NextRequest) {
 		}
 	}
 
-	// Legacy BSM signing (has 'message' field)
+	// BSM signing (has 'message' field)
 	const { message, encoding = "utf8" } = body;
 
 	if (!message) {

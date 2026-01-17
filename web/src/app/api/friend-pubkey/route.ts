@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { Key, State, Wallet } from "@/lib/tokenpass/server";
 import {
-	validateAccessToken,
-	extractAccessToken,
 	createErrorResponse,
+	extractAccessToken,
+	validateAccessToken,
 } from "@sigma-auth/better-auth-plugin/server/local";
+import { type NextRequest, NextResponse } from "next/server";
+import { Key, State, Wallet } from "@/lib/tokenpass/server";
 
 /**
  * POST /api/friend-pubkey
@@ -25,10 +25,9 @@ export async function POST(request: NextRequest) {
 	const { friendBapId } = body;
 
 	if (!Key.getSeed()) {
-		return NextResponse.json(
-			createErrorResponse("Wallet is locked. Please login first.", 1),
-			{ status: 401 },
-		);
+		return NextResponse.json(createErrorResponse("Wallet is locked. Please login first.", 1), {
+			status: 401,
+		});
 	}
 
 	const accessToken = extractAccessToken(request.headers.get("authorization"));
@@ -39,20 +38,22 @@ export async function POST(request: NextRequest) {
 
 	if (!validation.valid) {
 		return NextResponse.json(
-			createErrorResponse(validation.error!, validation.code),
+			createErrorResponse(validation.error ?? "Invalid token", validation.code),
 			{ status: 401 },
 		);
 	}
 
 	if (!friendBapId) {
-		return NextResponse.json(
-			createErrorResponse("friendBapId is required."),
-			{ status: 400 },
-		);
+		return NextResponse.json(createErrorResponse("friendBapId is required."), { status: 400 });
 	}
 
 	try {
-		const seedData = Key.getSeed()!;
+		const seedData = Key.getSeed();
+		if (!seedData) {
+			return NextResponse.json(createErrorResponse("Wallet is locked. Please login first.", 1), {
+				status: 401,
+			});
+		}
 
 		// Get master key for Type42 derivation
 		const masterKey = Wallet.seedToMasterKey(seedData.hex);

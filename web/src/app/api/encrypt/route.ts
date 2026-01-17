@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
-import { Key, State, Wallet } from "@/lib/tokenpass/server";
-import { ECIES, PublicKey, Utils } from "@bsv/sdk";
+import { ECIES, Hash, PublicKey, Utils } from "@bsv/sdk";
 import {
-	validateAccessToken,
-	extractAccessToken,
 	createErrorResponse,
+	extractAccessToken,
+	validateAccessToken,
 } from "@sigma-auth/better-auth-plugin/server/local";
+import { type NextRequest, NextResponse } from "next/server";
+import { Key, State, Wallet } from "@/lib/tokenpass/server";
 
 const { toArray, toHex } = Utils;
 
@@ -19,23 +19,23 @@ const { toArray, toHex } = Utils;
  *    - Uses Type42 to derive a shared key for the friend
  *    - If theirPublicKey is provided, uses ECDH with their key
  *
- * 2. Legacy self-encryption: { message }
+ * 2. Host-key self-encryption: { message }
  *    - Uses the host's derived key for self-encryption
  *
- * Returns: { ciphertext: string, success: true } or legacy { address, data, ts }
+ * Returns: { ciphertext: string, success: true } or { address, data, ts }
  *
  * Requires Authorization header with access token from /api/auth
  */
 export async function POST(request: NextRequest) {
+	const seedData = Key.getSeed();
+	if (!seedData) {
+		return NextResponse.json(createErrorResponse("Wallet is locked. Please login first.", 1), {
+			status: 401,
+		});
+	}
+
 	const body = await request.json();
 	const { data, message, friendBapId, theirPublicKey } = body;
-
-	if (!Key.getSeed()) {
-		return NextResponse.json(
-			createErrorResponse("Wallet is locked. Please login first.", 1),
-			{ status: 401 },
-		);
-	}
 
 	const accessToken = extractAccessToken(request.headers.get("authorization"));
 	const validation = await validateAccessToken({
@@ -45,15 +45,14 @@ export async function POST(request: NextRequest) {
 
 	if (!validation.valid) {
 		return NextResponse.json(
-			createErrorResponse(validation.error!, validation.code),
+			createErrorResponse(validation.error ?? "Invalid token", validation.code),
 			{ status: 401 },
 		);
 	}
 
-	// Friend-based Type42 encryption (new mode)
+	// Friend-based Type42 encryption (with friendBapId or theirPublicKey)
 	if (data && (friendBapId || theirPublicKey)) {
 		try {
-			const seedData = Key.getSeed()!;
 			const masterKey = Wallet.seedToMasterKey(seedData.hex);
 
 			// Derive encryption key
@@ -65,11 +64,10 @@ export async function POST(request: NextRequest) {
 				encryptionPubKey = PublicKey.fromString(theirPublicKey);
 			} else {
 				// Derive a key for the friend relationship
-				const invoiceNumber = `sigma-encrypt-${purpose}`;
-				const derivedKey = masterKey.deriveChild(
-					masterKey.toPublicKey(),
-					invoiceNumber,
-				);
+				// BRC-43 format: security level 2 with hashed purpose
+				const purposeHash = toHex(Hash.sha256(toArray(purpose, "utf8")));
+				const invoiceNumber = `2-encrypt-${purposeHash}`;
+				const derivedKey = masterKey.deriveChild(masterKey.toPublicKey(), invoiceNumber);
 				encryptionPubKey = derivedKey.toPublicKey();
 			}
 
@@ -92,12 +90,12 @@ export async function POST(request: NextRequest) {
 		}
 	}
 
-	// Legacy self-encryption mode (backward compatible)
+	// Host-key self-encryption mode
 	const encryptMessage = data || message;
 	if (!encryptMessage) {
 		return NextResponse.json(
 			createErrorResponse(
-				"Either 'data' with 'friendBapId'/'theirPublicKey', or 'message' for legacy mode is required.",
+				"Either 'data' with 'friendBapId'/'theirPublicKey', or 'message' for self-encryption is required.",
 			),
 			{ status: 400 },
 		);
@@ -107,10 +105,7 @@ export async function POST(request: NextRequest) {
 	const key = await Key.findOrCreate({ host });
 
 	if (!key) {
-		return NextResponse.json(
-			createErrorResponse("Please create a wallet."),
-			{ status: 417 },
-		);
+		return NextResponse.json(createErrorResponse("Please create a wallet."), { status: 417 });
 	}
 
 	const encryptedResponse = Key.encrypt({ message: encryptMessage, key });

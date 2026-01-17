@@ -38,10 +38,8 @@ export interface SignedMessage {
 
 export interface EncryptedMessage {
 	address: string;
-	data: {
-		iv: string;
-		encryptedData: string;
-	};
+	/** Hex-encoded ECIES ciphertext */
+	data: string;
 	ts: number;
 }
 

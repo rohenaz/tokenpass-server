@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import Datastore from "@seald-io/nedb";
 import os from "node:os";
 import path from "node:path";
+import Datastore from "@seald-io/nedb";
+import { NextResponse } from "next/server";
 
 export async function GET() {
 	const homedir = os.homedir();
@@ -23,13 +23,15 @@ export async function GET() {
 					return;
 				}
 
-				db.findOne({}, (findErr, doc) => {
-					resolve(NextResponse.json({
-						filename,
-						count,
-						hasDoc: !!doc,
-						docKeys: doc ? Object.keys(doc) : []
-					}));
+				db.findOne({}, (_findErr, doc) => {
+					resolve(
+						NextResponse.json({
+							filename,
+							count,
+							hasDoc: !!doc,
+							docKeys: doc ? Object.keys(doc) : [],
+						}),
+					);
 				});
 			});
 		});

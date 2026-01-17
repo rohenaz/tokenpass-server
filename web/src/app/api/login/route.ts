@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { Key, Seed } from "@/lib/tokenpass/server";
 
 export async function POST(request: NextRequest) {
