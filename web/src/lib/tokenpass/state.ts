@@ -48,22 +48,29 @@ class State {
 
 	findOne(o: Partial<StateRecord>): Promise<StateRecord | null> {
 		return new Promise((resolve) => {
-			this.db.findOne(o, (_err: Error | null, state: StateRecord | null) => {
-				if (state) {
-					const { _id: _, ...rest } = state;
-					resolve(rest as StateRecord);
-				} else {
-					resolve(null);
-				}
-			});
+			this.db.findOne(
+				o,
+				(_err: Error | null, doc: unknown) => {
+					const state = doc as StateRecord | null;
+					if (state) {
+						const { _id: _, ...rest } = state;
+						resolve(rest as StateRecord);
+					} else {
+						resolve(null);
+					}
+				},
+			);
 		});
 	}
 
 	find(o: Partial<StateRecord>): Promise<StateRecord[]> {
 		return new Promise((resolve) => {
-			this.db.find(o, (_err: Error | null, states: StateRecord[]) => {
-				resolve(states);
-			});
+			this.db.find(
+				o,
+				(_err: Error | null, docs: unknown) => {
+					resolve(docs as StateRecord[]);
+				},
+			);
 		});
 	}
 
@@ -85,10 +92,13 @@ class State {
 
 	insert(state: StateRecord): Promise<StateRecord> {
 		return new Promise((resolve) => {
-			this.db.insert(state, (_err: Error | null, _doc: StateRecord) => {
-				this.setState(state);
-				resolve(state);
-			});
+			this.db.insert(
+				state,
+				(_err: Error | null, _doc: unknown) => {
+					this.setState(state);
+					resolve(state);
+				},
+			);
 		});
 	}
 
@@ -101,10 +111,15 @@ class State {
 					upsert: true,
 					returnUpdatedDocs: true,
 				},
-				(err: Error | null, _numReplaced: number, doc: StateRecord) => {
-					console.log("UPDATED", { err, accessToken: doc?.accessToken });
-					this.setState(doc);
-					resolve(doc);
+				(
+					err: Error | null,
+					_numReplaced: number,
+					doc: unknown,
+				) => {
+					const stateDoc = doc as StateRecord;
+					console.log("UPDATED", { err, accessToken: stateDoc?.accessToken });
+					this.setState(stateDoc);
+					resolve(stateDoc);
 				},
 			);
 		});
@@ -112,9 +127,12 @@ class State {
 
 	all(): Promise<StateRecord[]> {
 		return new Promise((resolve) => {
-			this.db.find({}, (_err: Error | null, states: StateRecord[]) => {
-				resolve(states);
-			});
+			this.db.find(
+				{},
+				(_err: Error | null, docs: unknown) => {
+					resolve(docs as StateRecord[]);
+				},
+			);
 		});
 	}
 }

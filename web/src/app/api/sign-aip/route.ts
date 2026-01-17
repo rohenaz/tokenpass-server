@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Key, State, Wallet } from "@/lib/tokenpass/server";
+import { Key, State } from "@/lib/tokenpass/server";
+import { PrivateKey, BSM, Utils } from "@bsv/sdk";
+
+const { toArray } = Utils;
 
 /**
- * POST /api/sign
+ * POST /api/sign-aip
  *
- * Signs a message or creates a bitcoin-auth token.
+ * Signs an array of hex strings using AIP (Author Identity Protocol).
+ * Used for signing on-chain data with the identity key.
  *
- * Request body options:
- * 1. Legacy BSM signing: { message: string, encoding?: string }
- *    Returns: { address, message, sig, ts }
- *
- * 2. Bitcoin-auth token: { path: string, body?: string, signatureType?: 'bsm' | 'brc77' }
- *    Returns: { token: string }
+ * Request body: { data: string[] } - Array of hex strings to sign
+ * Returns: { signedOps: string[], success: true }
  *
  * Requires Authorization header with access token from /api/auth
  */
 export async function POST(request: NextRequest) {
 	const body = await request.json();
+	const { data } = body;
 
 	if (!Key.getSeed()) {
 		return NextResponse.json(
@@ -67,6 +68,16 @@ export async function POST(request: NextRequest) {
 		);
 	}
 
+	if (!Array.isArray(data) || data.length === 0) {
+		return NextResponse.json(
+			{
+				error: "data must be a non-empty array of hex strings.",
+				success: false,
+			},
+			{ status: 400 },
+		);
+	}
+
 	const host = state.host || "localhost";
 	const key = await Key.findOrCreate({ host });
 
@@ -77,51 +88,35 @@ export async function POST(request: NextRequest) {
 		);
 	}
 
-	// Check if this is a bitcoin-auth token request (has 'path' field)
-	if (body.path) {
-		const { path, body: requestBody, signatureType = "brc77" } = body;
+	try {
+		const privateKey = PrivateKey.fromWif(key.priv!);
 
-		try {
-			const token = Wallet.createAuthToken(
-				key,
-				path,
-				requestBody,
-				signatureType,
-			);
-
-			return NextResponse.json({
-				token,
-				success: true,
-			});
-		} catch (error) {
-			return NextResponse.json(
-				{
-					error: `Failed to create auth token: ${error instanceof Error ? error.message : String(error)}`,
-					success: false,
-				},
-				{ status: 500 },
-			);
+		// AIP signing: concatenate all hex buffers, then sign with BSM
+		const combinedBytes: number[] = [];
+		for (const hexStr of data) {
+			const bytes = toArray(hexStr, "hex");
+			combinedBytes.push(...bytes);
 		}
-	}
 
-	// Legacy BSM signing (has 'message' field)
-	const { message, encoding = "utf8" } = body;
+		// Sign the combined data with BSM
+		const sig = BSM.sign(combinedBytes, privateKey) as string;
+		const address = privateKey.toPublicKey().toAddress();
 
-	if (!message) {
+		// Return the AIP fields as signed operations
+		// AIP format: ["BITCOIN_ECDSA", address, signature]
+		const signedOps = ["BITCOIN_ECDSA", address, sig];
+
+		return NextResponse.json({
+			signedOps,
+			success: true,
+		});
+	} catch (error) {
 		return NextResponse.json(
 			{
-				error: "Either 'path' (for auth token) or 'message' (for BSM signing) is required.",
+				error: `Failed to sign AIP data: ${error instanceof Error ? error.message : String(error)}`,
 				success: false,
 			},
-			{ status: 400 },
+			{ status: 500 },
 		);
 	}
-
-	const signedResponse = Key.sign({
-		message,
-		key,
-		encoding,
-	});
-
-	return NextResponse.json(signedResponse);
 }

@@ -17,6 +17,8 @@
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@seald-io/nedb": "^4.1.2",
+    "bitcoin-auth": "^0.0.5",
+    "bitcoin-backup": "^0.0.5",
     "bsv-bap": "^0.1.14",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

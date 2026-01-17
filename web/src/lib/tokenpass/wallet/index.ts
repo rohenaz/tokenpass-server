@@ -1,4 +1,5 @@
-import { BigNumber, BSM, HD, PrivateKey, Signature, Utils } from "@bsv/sdk";
+import { BigNumber, BSM, HD, PrivateKey, PublicKey, Signature, Utils } from "@bsv/sdk";
+import { getAuthToken, parseAuthToken, verifyAuthToken } from "bitcoin-auth";
 import { encrypt as enc } from "../crypt";
 import type { KeyRecord, SeedData, SignedMessage } from "../types";
 import { generateMnemonic } from "../utils/mnemonic";
@@ -139,4 +140,180 @@ export const keyForTx = async (
 ): Promise<KeyRecord | null> => {
 	// Placeholder: This should query a UTXO store to find the key that owns the txid
 	return null;
+};
+
+/**
+ * Create a bitcoin-auth token for API authentication
+ * Format: Base64 encoded JSON with pubkey, scheme, timestamp, path, signature
+ *
+ * @param key - KeyRecord containing the private key (WIF)
+ * @param requestPath - The API path being authenticated
+ * @param body - Optional request body to include in signature
+ * @param scheme - Signature scheme ('bsm' or 'brc77', default: 'brc77')
+ * @returns Base64 encoded auth token string
+ */
+export const createAuthToken = (
+	key: KeyRecord,
+	requestPath: string,
+	body?: string,
+	scheme: "bsm" | "brc77" = "brc77",
+): string => {
+	if (!key.priv) {
+		throw new Error("Private key is required to create auth token");
+	}
+
+	return getAuthToken({
+		privateKeyWif: key.priv,
+		requestPath,
+		body,
+		scheme,
+	});
+};
+
+/**
+ * Verify a bitcoin-auth token
+ *
+ * @param token - The auth token to verify
+ * @param requestPath - The expected request path
+ * @param body - The expected request body (if any)
+ * @param timePad - Maximum age of token in seconds (default: 300 = 5 minutes)
+ * @returns True if token is valid
+ */
+export const verifyToken = (
+	token: string,
+	requestPath: string,
+	body?: string,
+	timePad = 300,
+): boolean => {
+	return verifyAuthToken(
+		token,
+		{
+			requestPath,
+			timestamp: "", // verifyAuthToken will check the timestamp from the token
+			body,
+		},
+		timePad,
+	);
+};
+
+/**
+ * Parse a bitcoin-auth token to extract its components
+ *
+ * @param token - The auth token to parse
+ * @returns Parsed token object or null if invalid
+ */
+export const parseToken = (token: string) => {
+	return parseAuthToken(token);
+};
+
+// Re-export bitcoin-auth functions for convenience
+export { getAuthToken, parseAuthToken, verifyAuthToken };
+
+/**
+ * Type42 (BRC-42) Key Derivation
+ *
+ * Type42 uses ECDH-based key derivation instead of BIP32 paths.
+ * This provides better privacy since derived keys are not linkable
+ * without knowing both the master key and the counterparty's public key.
+ *
+ * For self-derivation (no counterparty), we use the master key's own
+ * public key as the counterparty, with an invoice number as identifier.
+ */
+
+/**
+ * Convert seed hex to a master PrivateKey for Type42 derivation
+ * Uses SHA256 of the seed bytes to get a 256-bit key
+ *
+ * @param seedHex - The seed hex string
+ * @returns PrivateKey for Type42 derivation
+ */
+export const seedToMasterKey = (seedHex: string): PrivateKey => {
+	const seedBytes = toArray(seedHex, "hex");
+	// Use the first 32 bytes of the seed as the key
+	// (Standard HD wallets use 64-byte seeds, first 32 for key, rest for chaincode)
+	const keyBytes = seedBytes.slice(0, 32);
+	return new PrivateKey(keyBytes);
+};
+
+/**
+ * Derive a child key for a specific host using Type42
+ * Uses self-derivation (own public key as counterparty)
+ *
+ * @param masterKey - The master PrivateKey
+ * @param host - The host name to derive key for
+ * @returns Object with privateKey, address, and invoiceNumber
+ */
+export const deriveKeyForHost = (
+	masterKey: PrivateKey,
+	host: string,
+): {
+	privateKey: PrivateKey;
+	address: string;
+	invoiceNumber: string;
+} => {
+	const invoiceNumber = `sigma-auth-${host}`;
+
+	// Type42: self-derivation using own public key
+	const childKey = masterKey.deriveChild(
+		masterKey.toPublicKey(),
+		invoiceNumber,
+	);
+
+	return {
+		privateKey: childKey,
+		address: childKey.toPublicKey().toAddress(),
+		invoiceNumber,
+	};
+};
+
+/**
+ * Derive a shared key for friend-based encryption using Type42
+ * Uses ECDH with the friend's public key
+ *
+ * @param masterKey - The master PrivateKey
+ * @param friendPubKeyHex - The friend's public key in hex
+ * @param purpose - Purpose string for the derivation (e.g., 'encryption', 'signing')
+ * @returns Object with privateKey and invoiceNumber
+ */
+export const deriveSharedKey = (
+	masterKey: PrivateKey,
+	friendPubKeyHex: string,
+	purpose: string,
+): {
+	privateKey: PrivateKey;
+	invoiceNumber: string;
+} => {
+	const friendPubKey = PublicKey.fromString(friendPubKeyHex);
+	const invoiceNumber = `sigma-encrypt-${purpose}`;
+
+	// Type42: ECDH derivation with friend's public key
+	const childKey = masterKey.deriveChild(friendPubKey, invoiceNumber);
+
+	return {
+		privateKey: childKey,
+		invoiceNumber,
+	};
+};
+
+/**
+ * Get the public key that should be shared with a friend for Type42 derivation
+ * This is derived from our master key using the friend's BAP ID as context
+ *
+ * @param masterKey - The master PrivateKey
+ * @param friendBapId - The friend's BAP ID
+ * @returns Hex-encoded public key to share with the friend
+ */
+export const getFriendPublicKey = (
+	masterKey: PrivateKey,
+	friendBapId: string,
+): string => {
+	const invoiceNumber = `sigma-friend-${friendBapId}`;
+
+	// Derive a key specifically for this friend relationship
+	const childKey = masterKey.deriveChild(
+		masterKey.toPublicKey(),
+		invoiceNumber,
+	);
+
+	return childKey.toPublicKey().toString();
 };
